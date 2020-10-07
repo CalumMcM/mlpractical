@@ -133,11 +133,11 @@ class MNISTDataProvider(DataProvider):
         super(MNISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
 
-    # def next(self):
-    #    """Returns next data batch or raises `StopIteration` if at end."""
-    #    inputs_batch, targets_batch = super(MNISTDataProvider, self).next()
-    #    return inputs_batch, self.to_one_of_k(targets_batch)
-    #
+    def next(self):
+        """Returns next data batch or raises `StopIteration` if at end."""
+        inputs_batch, targets_batch = super(MNISTDataProvider, self).next()
+        return inputs_batch, self.to_one_of_k(targets_batch)
+    
     def __next__(self):
         return self.next()
 
@@ -156,8 +156,25 @@ class MNISTDataProvider(DataProvider):
             to zero except for the column corresponding to the correct class
             which is equal to one.
         """
-        raise NotImplementedError()
-
+        encoded = []
+        
+        # Get number of max class
+        k = np.amax(int_targets) + 1
+        
+        for int_target in int_targets:
+            
+            # Create array of 0's
+            encoding = np.zeros(k)
+            
+            # Change value of entry that's equal to
+            # the class to 1
+            encoding[int_target] = 1
+            
+            # Append this encoding to the output array
+            encoded.append(encoding)
+        
+        return np.asarray(encoded)
+        
 
 class MetOfficeDataProvider(DataProvider):
     """South Scotland Met Office weather data provider."""
@@ -188,19 +205,68 @@ class MetOfficeDataProvider(DataProvider):
             'Data file does not exist at expected path: ' + data_path
         )
         # load raw data from text file
-        # ...
+         # with open(dir_path, 'rb') as f: 
+        #    lines = f.readlines()
+        
+        dir_path = '../data/HadSSP_daily_qc.txt'
+        
+        raw_data = np.loadtxt(dir_path, skiprows = 3)
+        
         # filter out all missing datapoints and flatten to a vector
-        # ...
+
+        raw_data = raw_data[:,2:]
+        
+        boolArray = raw_data >= 0 
+        
+        data = raw_data[boolArray]
+        
         # normalise data to zero mean, unit standard deviation
-        # ...
+        normalised_data =  data / np.linalg.norm(data)
+        
         # convert from flat sequence to windowed data
-        # ...
-        # inputs are first (window_size - 1) entries in windows
-        # inputs = ...
-        # targets are last entry in windows
-        # targets = ...
+        inputs = []
+        targets = []
+        cur_batch = 1
+        
+        for i in range(0, len(normalised_data)-1-window_size, window_size):
+            
+            # Create current input array of window size
+            new_input = []
+            
+            for j in range(window_size-1):
+                new_input.append(normalised_data[i+j])
+                
+            # Append current input array to main inputs array
+            inputs.append(new_input)
+            
+            # Append current window target to main targets array
+            targets.append(normalised_data[i+window_size])
+            
+            # Break loop once all batches created
+            if cur_batch == batch_size:
+                break
+                
+            cur_batch += 1
+        
+        # Convert lists to numpy array
+        inputs = np.asarray(inputs)
+        targets = np.asarray(targets)
+        print (sinputs)
+        
+        print (targets)
+        # Reduced effort attempt:
+        targets_reduced = normalised_data[window_size-1::window_size].copy()
+        
+        count = 0
+        inputs_reduced = []
+        while count < batch_size:
+            inputs_reduced.append(normalised_data[:window_size-1:window_size].copy())
+            count+=1
+
+        #print (targets_reduced)
+        #print (inputs_reduced)
         # initialise base class with inputs and targets arrays
-        # super(MetOfficeDataProvider, self).__init__(
-        #     inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
+        super(MetOfficeDataProvider, self).__init__(
+             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
     def __next__(self):
             return self.next()
